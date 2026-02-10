@@ -19,16 +19,16 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
-  { title: "Dashboard", icon: LayoutDashboard, path: "/" },
-  { title: "Leads", icon: Users, path: "/leads" },
+  // { title: "Dashboard", icon: LayoutDashboard, path: "/" },
+  { title: "Leads", icon: Users, path: "/" },
   { title: "Gallery", icon: Image, path: "/gallery" },
   { title: "Blogs", icon: FileText, path: "/blogs" },
   { title: "Services", icon: Briefcase, path: "/services" },
   { title: "Event Types", icon: Calendar, path: "/event-types" },
-  { title: "Packages", icon: Package, path: "/packages" },
+  // { title: "Packages", icon: Package, path: "/packages" },
   { title: "Careers", icon: UserCheck, path: "/careers" },
-  { title: "Analytics", icon: BarChart3, path: "/analytics" },
-  { title: "Settings", icon: Settings, path: "/settings" },
+  // { title: "Analytics", icon: BarChart3, path: "/analytics" },
+  // { title: "Settings", icon: Settings, path: "/settings" },
 ];
 
 export function AdminSidebar() {
@@ -50,7 +50,7 @@ export function AdminSidebar() {
           </div>
           {!collapsed && (
             <span className="text-lg font-semibold text-sidebar-foreground">
-              ClickPlick
+              Inditech IT
             </span>
           )}
         </div>
