@@ -23,10 +23,10 @@ const navItems = [
   { title: "Leads", icon: Users, path: "/" },
   { title: "Gallery", icon: Image, path: "/gallery" },
   { title: "Blogs", icon: FileText, path: "/blogs" },
-  { title: "Services", icon: Briefcase, path: "/services" },
-  { title: "Event Types", icon: Calendar, path: "/event-types" },
+  // { title: "Services", icon: Briefcase, path: "/services" },
+  // { title: "Event Types", icon: Calendar, path: "/event-types" },
   // { title: "Packages", icon: Package, path: "/packages" },
-  { title: "Careers", icon: UserCheck, path: "/careers" },
+  // { title: "Careers", icon: UserCheck, path: "/careers" },
   // { title: "Analytics", icon: BarChart3, path: "/analytics" },
   // { title: "Settings", icon: Settings, path: "/settings" },
 ];
