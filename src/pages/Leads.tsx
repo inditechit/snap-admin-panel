@@ -161,6 +161,7 @@ const Leads = () => {
   // --- 4. COPY LEAD DETAILS ---
   const handleCopyDetails = () => {
     if (!selectedLead) return;
+
     const detailsText = `
 Lead Details:
 -------------
@@ -169,9 +170,12 @@ Email: ${selectedLead.email}
 Phone: ${selectedLead.phone_number}
 Status: ${selectedLead.status}
 Event Date: ${formatDate(selectedLead.event_date)}
-`.trim();
+Event Time: ${selectedLead.event_time}
+Postcode: ${selectedLead.event_postcode}
+    `.trim();
+
     navigator.clipboard.writeText(detailsText);
-    toast.success("Lead details copied!");
+    toast.success("Lead details copied to clipboard!");
   };
 
   const formatDate = (dateString: string) => {
@@ -328,7 +332,6 @@ Event Date: ${formatDate(selectedLead.event_date)}
           </DialogHeader>
           {selectedLead && (
             <div className="space-y-4">
-               {/* Details grid same as before... */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 sm:col-span-1">
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Name</p>
@@ -338,15 +341,40 @@ Event Date: ${formatDate(selectedLead.event_date)}
                   <p className="text-xs font-semibold uppercase text-muted-foreground">Status</p>
                   <StatusBadge status={selectedLead.status} />
                 </div>
-                {/* ... other details ... */}
+                <div className="col-span-2">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Email</p>
+                  <p>{selectedLead.email}</p>
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Phone</p>
+                  <p>{selectedLead.phone_number}</p>
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Postcode</p>
+                  <p>{selectedLead.event_postcode}</p>
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Event Date</p>
+                  <p>{formatDate(selectedLead.event_date)}</p>
+                </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Event Time</p>
+                  <p>{selectedLead.event_time}</p>
+                </div>
+                <div className="col-span-2 border-t pt-2 mt-2">
+                  <p className="text-xs font-semibold uppercase text-muted-foreground">Submission Date</p>
+                  <p className="text-sm">{new Date(selectedLead.created_at).toLocaleString()}</p>
+                </div>
               </div>
-              <Button 
-                onClick={handleCopyDetails} 
+
+              {/* Copy Button Section */}
+              <Button
+                onClick={handleCopyDetails}
                 className="w-full mt-4 gap-2"
                 variant="outline"
               >
                 <Copy className="h-4 w-4" />
-                Copy Details
+                Copy Lead Details
               </Button>
             </div>
           )}
