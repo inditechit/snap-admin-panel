@@ -1,8 +1,18 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
 import ReactQuill from "react-quill";
-import "react-quill/dist/quill.snow.css"; // Import styles
-import { Plus, Edit, Trash2, ExternalLink, MoreHorizontal, Image as ImageIcon, Loader2 } from "lucide-react";
+import "react-quill/dist/quill.snow.css";
+import { 
+  Plus, 
+  Edit, 
+  Trash2, 
+  MoreHorizontal, 
+  Image as ImageIcon, 
+  Loader2, 
+  ArrowRight, 
+  ArrowLeft,
+  Save
+} from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { PageCard } from "@/components/dashboard/PageCard";
 import { Button } from "@/components/ui/button";
@@ -41,24 +51,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast"; // Assuming you have a toast component
+import { toast } from "sonner"; // Using sonner based on previous context, or change to useToast if you prefer
 
-// API Base URL
 const API_URL = "https://api.clickplick.co.uk/api";
 const API_URL2 = "https://api.clickplick.co.uk";
 
 const Blogs = () => {
-  const { toast } = useToast();
-  
   // Data States
-  const [blogs, setBlogs] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [blogs, setBlogs] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal States
+  // Modal & Step States
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [selectedBlog, setSelectedBlog] = useState(null);
+  const [currentStep, setCurrentStep] = useState(1); // 1 = Details, 2 = Editor
+  const [selectedBlog, setSelectedBlog] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form States
@@ -68,13 +76,12 @@ const Blogs = () => {
     short_content: "",
     content: "",
     tag: "",
-    link: "", // Used for Featured Image URL
+    link: "",
     author: "",
     attr: "",
     language: "en"
   });
 
-  // Fetch Initial Data
   useEffect(() => {
     fetchPosts();
     fetchCategories();
@@ -87,7 +94,7 @@ const Blogs = () => {
       setLoading(false);
     } catch (error) {
       console.error("Error fetching posts:", error);
-      toast({ title: "Error", description: "Failed to load blog posts", variant: "destructive" });
+      toast.error("Failed to load blog posts");
       setLoading(false);
     }
   };
@@ -101,24 +108,20 @@ const Blogs = () => {
     }
   };
 
-  // Handle Form Input Change
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: any) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handle Rich Text Change
-  const handleContentChange = (value) => {
+  const handleContentChange = (value: string) => {
     setFormData((prev) => ({ ...prev, content: value }));
   };
 
-  // Handle Select Change
-  const handleSelectChange = (name, value) => {
+  const handleSelectChange = (name: string, value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Handle Image Upload
-  const handleImageUpload = async (e) => {
+  const handleImageUpload = async (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -130,80 +133,63 @@ const Blogs = () => {
       const res = await axios.post(`${API_URL}/gallery`, imageData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-      // Assuming API returns { url: '/uploads/filename.jpg' }
       setFormData((prev) => ({ ...prev, link: res.data.url }));
-      toast({ title: "Success", description: "Image uploaded successfully" });
+      toast.success("Image uploaded successfully");
     } catch (error) {
       console.error("Upload error:", error);
-      toast({ title: "Error", description: "Image upload failed", variant: "destructive" });
+      toast.error("Image upload failed");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Create Post
+  // --- Actions ---
+
   const handleCreate = async () => {
     setIsSubmitting(true);
     try {
       await axios.post(`${API_URL}/posts`, formData);
-      toast({ title: "Success", description: "Blog post created successfully" });
+      toast.success("Blog post created successfully");
       setAddModalOpen(false);
       resetForm();
       fetchPosts();
     } catch (error) {
       console.error("Create error:", error);
-      toast({ title: "Error", description: "Failed to create post", variant: "destructive" });
+      toast.error("Failed to create post");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Open Edit Modal
-  const openEditModal = (blog) => {
-    setSelectedBlog(blog);
-    setFormData({
-      title: blog.title,
-      category_id: blog.category_id,
-      short_content: blog.short_content,
-      content: blog.content,
-      tag: blog.tag,
-      link: blog.link,
-      author: blog.author,
-      attr: blog.attr,
-      language: blog.language || "en"
-    });
-    setEditModalOpen(true);
-  };
-
-  // Update Post
   const handleUpdate = async () => {
     if (!selectedBlog) return;
     setIsSubmitting(true);
     try {
       await axios.put(`${API_URL}/posts/${selectedBlog.id}`, formData);
-      toast({ title: "Success", description: "Blog post updated successfully" });
+      toast.success("Blog post updated successfully");
       setEditModalOpen(false);
       fetchPosts();
     } catch (error) {
       console.error("Update error:", error);
-      toast({ title: "Error", description: "Failed to update post", variant: "destructive" });
+      toast.error("Failed to update post");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Delete Post
-  const handleDelete = async (id) => {
+  const handleDelete = async (id: number) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
     try {
       await axios.delete(`${API_URL}/posts/${id}`);
-      toast({ title: "Deleted", description: "Blog post deleted" });
+      toast.success("Blog post deleted");
       setBlogs(blogs.filter((b) => b.id !== id));
     } catch (error) {
       console.error("Delete error:", error);
-      toast({ title: "Error", description: "Failed to delete post", variant: "destructive" });
+      toast.error("Failed to delete post");
     }
   };
+
+  // --- Helper Functions ---
 
   const resetForm = () => {
     setFormData({
@@ -217,18 +203,136 @@ const Blogs = () => {
       attr: "",
       language: "en"
     });
+    setCurrentStep(1); // Reset step
   };
 
-  // Quill Modules (Toolbar options)
+  const openEditModal = (blog: any) => {
+    setSelectedBlog(blog);
+    setFormData({
+      title: blog.title,
+      category_id: blog.category_id,
+      short_content: blog.short_content,
+      content: blog.content,
+      tag: blog.tag,
+      link: blog.link,
+      author: blog.author,
+      attr: blog.attr,
+      language: blog.language || "en"
+    });
+    setCurrentStep(1); // Reset step
+    setEditModalOpen(true);
+  };
+
+  const handleNextStep = () => {
+    // Simple validation
+    if (!formData.title || !formData.category_id) {
+      toast.error("Please fill in Title and Category first");
+      return;
+    }
+    setCurrentStep(2);
+  };
+
   const quillModules = {
     toolbar: [
       [{ header: [1, 2, 3, false] }],
-      ["bold", "italic", "underline", "strike"],
+      ["bold", "italic", "underline", "strike", "blockquote"],
       [{ list: "ordered" }, { list: "bullet" }],
-      ["link", "image"],
+      [{ color: [] }, { background: [] }],
+      ["link", "image", "video"],
       ["clean"],
     ],
   };
+
+  // --- Render Component for Form Steps ---
+  // We reuse this logic for both Add and Edit modals
+  const renderFormContent = () => (
+    <div className="py-4">
+      {/* STEP 1: Details */}
+      {currentStep === 1 && (
+        <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-300">
+          <div className="space-y-2">
+            <Label>Title <span className="text-red-500">*</span></Label>
+            <Input name="title" value={formData.title} onChange={handleInputChange} placeholder="Enter blog title" />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Category <span className="text-red-500">*</span></Label>
+              <Select value={formData.category_id?.toString()} onValueChange={(val) => handleSelectChange("category_id", val)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Author</Label>
+              <Input name="author" value={formData.author} onChange={handleInputChange} placeholder="Author name" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Featured Image</Label>
+            <div className="flex gap-4 items-start border p-3 rounded-md bg-muted/20">
+              <div className="flex-1">
+                <Input type="file" accept="image/*" onChange={handleImageUpload} className="mb-2"/>
+                <p className="text-xs text-muted-foreground">Recommended size: 1200x630px</p>
+              </div>
+              {formData.link ? (
+                <img src={`${API_URL2}${formData.link}`} alt="Preview" className="h-16 w-24 object-cover rounded border bg-white" />
+              ) : (
+                <div className="h-16 w-24 bg-muted rounded border flex items-center justify-center text-muted-foreground text-xs">
+                  No Image
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Short Description (SEO)</Label>
+            <Textarea 
+              name="short_content" 
+              value={formData.short_content} 
+              onChange={handleInputChange} 
+              placeholder="Brief summary used for previews and SEO..." 
+              rows={3} 
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Tags</Label>
+              <Input name="tag" value={formData.tag} onChange={handleInputChange} placeholder="tech, news, update" />
+            </div>
+            <div className="space-y-2">
+              <Label>Attributes</Label>
+              <Input name="attr" value={formData.attr} onChange={handleInputChange} placeholder="Optional attributes" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 2: Content Editor */}
+      {currentStep === 2 && (
+        <div className="space-y-2 animate-in fade-in slide-in-from-right-4 duration-300 h-full flex flex-col">
+          <Label className="text-lg font-semibold text-primary">Write your content</Label>
+          <div className="flex-1 min-h-[400px]">
+            <ReactQuill 
+              theme="snow" 
+              value={formData.content} 
+              onChange={handleContentChange} 
+              modules={quillModules}
+              className="h-[350px]"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <AdminLayout title="Blogs Management" subtitle="Create and manage blog posts">
@@ -241,86 +345,38 @@ const Blogs = () => {
                 Create Blog
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className={currentStep === 2 ? "sm:max-w-4xl" : "sm:max-w-xl"}>
               <DialogHeader>
-                <DialogTitle>Create New Blog Post</DialogTitle>
-                <DialogDescription>Add a new article to your blog</DialogDescription>
+                <DialogTitle>
+                  {currentStep === 1 ? "Step 1: Blog Details" : "Step 2: Write Content"}
+                </DialogTitle>
+                <DialogDescription>
+                  {currentStep === 1 ? "Configure the metadata for your post." : "Use the editor to compose your article."}
+                </DialogDescription>
               </DialogHeader>
-              <div className="space-y-4 py-4">
-                {/* Title */}
-                <div className="space-y-2">
-                  <Label>Title</Label>
-                  <Input name="title" value={formData.title} onChange={handleInputChange} placeholder="Blog post title" />
-                </div>
+              
+              {renderFormContent()}
 
-                {/* Category & Author Row */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Category</Label>
-                    <Select onValueChange={(val) => handleSelectChange("category_id", val)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Author</Label>
-                    <Input name="author" value={formData.author} onChange={handleInputChange} placeholder="Author name" />
-                  </div>
-                </div>
-
-                {/* Featured Image Upload */}
-                <div className="space-y-2">
-                  <Label>Featured Image</Label>
-                  <div className="flex gap-4 items-center">
-                    <Input type="file" accept="image/*" onChange={handleImageUpload} />
-                    {formData.link && (
-                      <img src={`${API_URL2}${formData.link}`} alt="Preview" className="h-10 w-10 object-cover rounded border" />
-                    )}
-                  </div>
-                  {isSubmitting && <p className="text-xs text-blue-500">Uploading image...</p>}
-                </div>
-
-                {/* Short Description */}
-                <div className="space-y-2">
-                  <Label>Short Description</Label>
-                  <Textarea name="short_content" value={formData.short_content} onChange={handleInputChange} placeholder="Brief summary..." rows={2} />
-                </div>
-
-                {/* Rich Text Content */}
-                <div className="space-y-2">
-                  <Label>Content</Label>
-                  <ReactQuill 
-                    theme="snow" 
-                    value={formData.content} 
-                    onChange={handleContentChange} 
-                    modules={quillModules}
-                    className="h-40 mb-12" // mb-12 to handle toolbar height
-                  />
-                </div>
-
-                {/* Tags & Attr */}
-                <div className="grid grid-cols-2 gap-4 pt-4">
-                  <div className="space-y-2">
-                    <Label>Tags</Label>
-                    <Input name="tag" value={formData.tag} onChange={handleInputChange} placeholder="Comma separated tags" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Attributes (Optional)</Label>
-                    <Input name="attr" value={formData.attr} onChange={handleInputChange} placeholder="Extra attributes" />
-                  </div>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setAddModalOpen(false)}>Cancel</Button>
-                <Button onClick={handleCreate} disabled={isSubmitting}>
-                  {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Create Blog"}
-                </Button>
+              <DialogFooter className="flex justify-between items-center w-full sm:justify-between">
+                {currentStep === 1 ? (
+                  <>
+                    <Button variant="ghost" onClick={() => setAddModalOpen(false)}>Cancel</Button>
+                    <Button onClick={handleNextStep}>
+                      Next Step <ArrowRight className="ml-2 h-4 w-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" onClick={() => setCurrentStep(1)}>
+                      <ArrowLeft className="mr-2 h-4 w-4" /> Back to Details
+                    </Button>
+                    <Button onClick={handleCreate} disabled={isSubmitting}>
+                      {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (
+                        <>Publish Blog <Save className="ml-2 h-4 w-4" /></>
+                      )}
+                    </Button>
+                  </>
+                )}
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -341,11 +397,13 @@ const Blogs = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">Loading posts...</TableCell>
+                  <TableCell colSpan={6} className="text-center py-8">
+                    <div className="flex justify-center"><Loader2 className="animate-spin" /></div>
+                  </TableCell>
                 </TableRow>
               ) : blogs.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8">No posts found.</TableCell>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No posts found.</TableCell>
                 </TableRow>
               ) : (
                 blogs.map((blog) => (
@@ -355,18 +413,18 @@ const Blogs = () => {
                          <img
                            src={`${API_URL2}${blog.link}`}
                            alt={blog.title}
-                           className="h-12 w-20 rounded-md object-cover border"
-                           onError={(e) => { e.target.src = "https://via.placeholder.com/80?text=No+Img"; }}
+                           className="h-10 w-16 rounded object-cover border"
+                           onError={(e: any) => { e.target.src = "https://placehold.co/100?text=No+Img"; }}
                          />
                       ) : (
-                        <div className="h-12 w-20 bg-gray-100 rounded-md flex items-center justify-center text-gray-400">
-                          <ImageIcon size={20} />
+                        <div className="h-10 w-16 bg-muted rounded flex items-center justify-center">
+                          <ImageIcon className="h-4 w-4 text-muted-foreground" />
                         </div>
                       )}
                     </TableCell>
                     <TableCell className="font-medium max-w-[200px] truncate">{blog.title}</TableCell>
                     <TableCell>
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-secondary text-secondary-foreground">
                         {blog.category_name || "Uncategorized"}
                       </span>
                     </TableCell>
@@ -386,7 +444,6 @@ const Blogs = () => {
                             <Edit className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
-                          <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => handleDelete(blog.id)} className="text-destructive">
                             <Trash2 className="mr-2 h-4 w-4" />
                             Delete
@@ -402,80 +459,38 @@ const Blogs = () => {
         </div>
       </PageCard>
 
-      {/* Edit Modal */}
+      {/* Edit Modal (Reuses logic but separate Dialog for cleanliness) */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className={currentStep === 2 ? "sm:max-w-4xl" : "sm:max-w-xl"}>
           <DialogHeader>
-            <DialogTitle>Edit Blog Post</DialogTitle>
+            <DialogTitle>
+              {currentStep === 1 ? "Edit: Blog Details" : "Edit: Content"}
+            </DialogTitle>
+            <DialogDescription>Modify your existing blog post.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            {/* Title */}
-            <div className="space-y-2">
-              <Label>Title</Label>
-              <Input name="title" value={formData.title} onChange={handleInputChange} />
-            </div>
+          
+          {renderFormContent()}
 
-            {/* Category & Author Row */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Category</Label>
-                <Select value={formData.category_id?.toString()} onValueChange={(val) => handleSelectChange("category_id", val)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select Category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map((cat) => (
-                      <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Author</Label>
-                <Input name="author" value={formData.author} onChange={handleInputChange} />
-              </div>
-            </div>
-
-            {/* Featured Image Upload */}
-            <div className="space-y-2">
-              <Label>Featured Image</Label>
-              <div className="flex gap-4 items-center">
-                <Input type="file" accept="image/*" onChange={handleImageUpload} />
-                {formData.link && (
-                  <img src={`${API_URL2}${formData.link}`} alt="Preview" className="h-10 w-10 object-cover rounded border" />
-                )}
-              </div>
-            </div>
-
-            {/* Short Description */}
-            <div className="space-y-2">
-              <Label>Short Description</Label>
-              <Textarea name="short_content" value={formData.short_content} onChange={handleInputChange} rows={2} />
-            </div>
-
-            {/* Rich Text Content */}
-            <div className="space-y-2">
-              <Label>Content</Label>
-              <ReactQuill 
-                theme="snow" 
-                value={formData.content} 
-                onChange={handleContentChange} 
-                modules={quillModules}
-                className="h-40 mb-12"
-              />
-            </div>
-
-            {/* Tags */}
-            <div className="pt-4 space-y-2">
-              <Label>Tags</Label>
-              <Input name="tag" value={formData.tag} onChange={handleInputChange} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleUpdate} disabled={isSubmitting}>
-              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : "Save Changes"}
-            </Button>
+          <DialogFooter className="flex justify-between items-center w-full sm:justify-between">
+            {currentStep === 1 ? (
+              <>
+                <Button variant="ghost" onClick={() => setEditModalOpen(false)}>Cancel</Button>
+                <Button onClick={handleNextStep}>
+                  Next Step <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setCurrentStep(1)}>
+                  <ArrowLeft className="mr-2 h-4 w-4" /> Back to Details
+                </Button>
+                <Button onClick={handleUpdate} disabled={isSubmitting}>
+                   {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (
+                    <>Save Changes <Save className="ml-2 h-4 w-4" /></>
+                  )}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

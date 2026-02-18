@@ -23,14 +23,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import imageCompression from "browser-image-compression"; // 1. Import the library
 
 // API Configuration
-const API_BASE_URL = "https://api.clickplick.co.uk"; // Adjust if needed
+const API_BASE_URL = "https://api.clickplick.co.uk";
 
 interface GalleryImage {
   id: number;
   image_url: string;
-  type: string; // "type" from DB maps to Category
+  type: string;
   created_at: string;
 }
 
@@ -41,6 +42,7 @@ const Gallery = () => {
   
   // Upload State
   const [uploading, setUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(""); // To show "Compressing..." vs "Uploading..."
   const [newCategory, setNewCategory] = useState("Weddings");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -65,7 +67,7 @@ const Gallery = () => {
     fetchImages();
   }, []);
 
-  // --- 2. ADD IMAGE (FILE UPLOAD) ---
+  // --- 2. ADD IMAGE (WITH COMPRESSION) ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setSelectedFile(e.target.files[0]);
@@ -79,11 +81,34 @@ const Gallery = () => {
     }
 
     setUploading(true);
-    const formData = new FormData();
-    formData.append("image", selectedFile);
-    formData.append("category", newCategory); // Backend expects 'category' in body to map to 'type' column
+    setUploadStatus("Compressing..."); // Feedback to user
 
     try {
+      // --- COMPRESSION LOGIC STARTS HERE ---
+      const options = {
+        maxSizeMB: 0.5,          // Target: Under 500KB
+        maxWidthOrHeight: 1920,  // Resize huge images to 1920px (HD)
+        useWebWorker: true,      // Run in background to avoid freezing UI
+        fileType: "image/webp",  // Force conversion to WebP
+        initialQuality: 0.8,     // Start at 80% quality
+      };
+
+      // Compress the file
+      const compressedFile = await imageCompression(selectedFile, options);
+      
+      // If we need to rename the file to have .webp extension
+      const newFileName = selectedFile.name.replace(/\.[^/.]+$/, "") + ".webp";
+      const finalFile = new File([compressedFile], newFileName, { type: "image/webp" });
+
+      console.log(`Original: ${selectedFile.size / 1024}KB, Compressed: ${finalFile.size / 1024}KB`);
+      // --- COMPRESSION LOGIC ENDS HERE ---
+
+      setUploadStatus("Uploading...");
+
+      const formData = new FormData();
+      formData.append("image", finalFile); // Send the COMPRESSED file
+      formData.append("category", newCategory);
+
       const response = await fetch(`${API_BASE_URL}/api/gallery`, {
         method: "POST",
         body: formData,
@@ -93,13 +118,14 @@ const Gallery = () => {
 
       toast.success("Image uploaded successfully");
       setAddModalOpen(false);
-      setSelectedFile(null); // Reset file input
-      fetchImages(); // Refresh grid
+      setSelectedFile(null);
+      fetchImages();
     } catch (error) {
       console.error("Upload error:", error);
       toast.error("Failed to upload image");
     } finally {
       setUploading(false);
+      setUploadStatus("");
     }
   };
 
@@ -123,8 +149,8 @@ const Gallery = () => {
     }
   };
 
-  // Helper to construct full image URL
   const getImageUrl = (path: string) => {
+    if (!path) return "";
     return path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
   };
 
@@ -142,7 +168,9 @@ const Gallery = () => {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Add New Image</DialogTitle>
-                <DialogDescription>Upload a new image to your gallery</DialogDescription>
+                <DialogDescription>
+                  Uploads will be automatically optimized (WebP, &lt;500KB)
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
@@ -175,7 +203,7 @@ const Gallery = () => {
                   </div>
                   {selectedFile && (
                     <p className="text-xs text-muted-foreground">
-                      Selected: {selectedFile.name}
+                      Selected: {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
                     </p>
                   )}
                 </div>
@@ -188,7 +216,7 @@ const Gallery = () => {
                   {uploading ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Uploading...
+                      {uploadStatus}
                     </>
                   ) : (
                     "Upload Image"
@@ -220,6 +248,7 @@ const Gallery = () => {
                     src={getImageUrl(image.image_url)}
                     alt={image.type}
                     className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    loading="lazy"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src = "https://placehold.co/600x400?text=Image+Not+Found";
                     }}
