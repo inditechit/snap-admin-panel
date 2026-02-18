@@ -30,14 +30,14 @@ const App = () => (
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<Leads />} />
+          <Route path="/leads" element={<Leads />} />
           <Route path="/gallery" element={<Gallery />} />
           <Route path="/blogs" element={<Blogs />} />
           <Route path="/services" element={<Services />} />
           <Route path="/event-types" element={<EventTypes />} />
           <Route path="/packages" element={<Packages />} />
           <Route path="/careers" element={<Careers />} />
-          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/" element={<Analytics />} />
           <Route path="/settings" element={<Settings />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

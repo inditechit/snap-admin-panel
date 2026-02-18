@@ -1,4 +1,4 @@
-import { Bell, Search, User } from "lucide-react";
+import { Bell, Search, LogOut } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/lib/AuthContext";
 
 interface AdminHeaderProps {
   title: string;
@@ -18,6 +19,15 @@ interface AdminHeaderProps {
 }
 
 export function AdminHeader({ title, subtitle }: AdminHeaderProps) {
+  const { user, logout } = useAuth(); // Get user and logout function
+
+  // Get initials for avatar fallback (e.g., "Admin User" -> "AU")
+  const getInitials = (name: string) => {
+    return name
+      ? name.substring(0, 2).toUpperCase()
+      : "AD";
+  };
+
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b bg-card/80 px-6 backdrop-blur-md">
       {/* Page Title */}
@@ -30,25 +40,24 @@ export function AdminHeader({ title, subtitle }: AdminHeaderProps) {
 
       {/* Right Actions */}
       <div className="flex items-center gap-4">
-        {/* Search */}
-        <div className="relative hidden md:block">
+        {/* <div className="relative hidden md:block">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search..."
             className="w-64 pl-9"
           />
-        </div>
+        </div> */}
 
         {/* Notifications */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+          {/* <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="h-5 w-5" />
               <Badge className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 text-xs">
                 3
               </Badge>
             </Button>
-          </DropdownMenuTrigger>
+          </DropdownMenuTrigger> */}
           <DropdownMenuContent align="end" className="w-80">
             <DropdownMenuLabel>Notifications</DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -78,22 +87,25 @@ export function AdminHeader({ title, subtitle }: AdminHeaderProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="flex items-center gap-2 px-2">
               <Avatar className="h-8 w-8">
+                {/* You can replace this src with user.avatar_url if you have it */}
                 <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face" />
-                <AvatarFallback>AD</AvatarFallback>
+                <AvatarFallback>{getInitials(user?.username || "")}</AvatarFallback>
               </Avatar>
-              <span className="hidden font-medium md:inline-block">Admin</span>
+              <span className="hidden font-medium md:inline-block">
+                {user?.username || "Admin"}
+              </span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <User className="mr-2 h-4 w-4" />
-              Profile
-            </DropdownMenuItem>
-            <DropdownMenuItem>Settings</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
+            
+            {/* Logout Option */}
+            <DropdownMenuItem 
+              onClick={logout} 
+              className="text-destructive cursor-pointer focus:text-destructive"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
               Log out
             </DropdownMenuItem>
           </DropdownMenuContent>

@@ -7,14 +7,16 @@ import {
   Camera,
   ChevronLeft,
   ChevronRight,
-  LogOut, // 1. Import LogOut icon
+  LogOut,
+  ChartBar, // 1. Import LogOut icon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/AuthContext";
 
 const navItems = [
-  { title: "Leads", icon: Users, path: "/" },
+  { title: "Dashboard", icon: ChartBar, path: "/" },
+  { title: "Leads", icon: Users, path: "/leads" },
   { title: "Gallery", icon: Image, path: "/gallery" },
   { title: "Blogs", icon: FileText, path: "/blogs" },
 ];
