@@ -40,11 +40,18 @@ export function AdminLayout({ children, title, subtitle }: AdminLayoutProps) {
       <main
         className={cn(
           "min-h-screen transition-all duration-300",
-          sidebarCollapsed ? "ml-16" : "ml-64"
+          // Default to 0 margin on mobile, apply 16 or 64 on medium screens and up
+          "ml-0", 
+          sidebarCollapsed ? "md:ml-16" : "md:ml-64"
         )}
       >
         <AdminHeader title={title} subtitle={subtitle} />
-        <div className="p-6">{children}</div>
+        
+        {/* Added a bit of top padding on mobile so content doesn't overlap 
+            with the floating hamburger menu button from AdminSidebar */}
+        <div className="p-4 pt-16 md:p-6 md:pt-6">
+          {children}
+        </div>
       </main>
     </div>
   );

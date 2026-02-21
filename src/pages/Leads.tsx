@@ -6,7 +6,8 @@ import {
   Loader2, 
   Copy, 
   ChevronLeft, 
-  ChevronRight 
+  ChevronRight,
+  Check
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { PageCard } from "@/components/dashboard/PageCard";
@@ -44,7 +45,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
-// Define the type matching your DB structure
+// Updated Interface with new fields
 interface Lead {
   id: number;
   customer_name: string;
@@ -53,6 +54,9 @@ interface Lead {
   event_date: string;
   event_time: string;
   event_postcode: string;
+  no_of_guests: string;
+  choice_of_photobooth: string;
+  event_type: string;
   status: string;
   created_at: string;
 }
@@ -64,6 +68,7 @@ const Leads = () => {
   const [loading, setLoading] = useState(true);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // --- PAGINATION STATE ---
   const [currentPage, setCurrentPage] = useState(1);
@@ -100,7 +105,6 @@ const Leads = () => {
   // --- 2. UPDATE STATUS API ---
   const handleStatusChange = async (leadId: number, newStatus: string) => {
     const originalLeads = [...leads];
-    // Optimistic update
     const updatedLeads = leads.map(lead =>
       lead.id === leadId ? { ...lead, status: newStatus } : lead
     );
@@ -140,7 +144,6 @@ const Leads = () => {
         setLeads(leads.filter(lead => lead.id !== leadId));
         toast.success("Lead deleted successfully");
         
-        // Adjust pagination if page becomes empty
         if (currentLeads.length === 1 && currentPage > 1) {
           setCurrentPage(prev => prev - 1);
         }
@@ -158,8 +161,8 @@ const Leads = () => {
     setViewModalOpen(true);
   };
 
-  // --- 4. COPY LEAD DETAILS ---
-  const handleCopyDetails = () => {
+  // --- 4. COPY ALL DETAILS ---
+  const handleCopyAllDetails = () => {
     if (!selectedLead) return;
 
     const detailsText = `
@@ -168,17 +171,34 @@ Lead Details:
 Name: ${selectedLead.customer_name}
 Email: ${selectedLead.email}
 Phone: ${selectedLead.phone_number}
-Status: ${selectedLead.status}
+Event Type: ${selectedLead.event_type || 'N/A'}
+Photobooth: ${selectedLead.choice_of_photobooth || 'N/A'}
+Guests: ${selectedLead.no_of_guests || 'N/A'}
 Event Date: ${formatDate(selectedLead.event_date)}
 Event Time: ${selectedLead.event_time}
 Postcode: ${selectedLead.event_postcode}
+Status: ${selectedLead.status}
     `.trim();
 
     navigator.clipboard.writeText(detailsText);
-    toast.success("Lead details copied to clipboard!");
+    toast.success("All lead details copied to clipboard!");
+  };
+
+  // --- 5. COPY INDIVIDUAL DETAIL ---
+  const handleCopyIndividual = (text: string, fieldName: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldName);
+    toast.success(`${fieldName} copied!`);
+    
+    // Reset copy icon checkmark after 2 seconds
+    setTimeout(() => {
+      setCopiedField(null);
+    }, 2000);
   };
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString(undefined, {
       year: 'numeric',
       month: 'short',
@@ -200,6 +220,29 @@ Postcode: ${selectedLead.event_postcode}
     if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
 
+  // --- HELPER COMPONENT FOR MODAL ROWS ---
+  const DetailRow = ({ label, value }: { label: string; value: string }) => (
+    <div className="col-span-2 sm:col-span-1 group relative flex flex-col justify-center rounded-md p-2 hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
+      <div className="flex items-center justify-between w-full">
+        <p className="font-medium text-sm break-words pr-2">{value || 'N/A'}</p>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+          onClick={() => handleCopyIndividual(value, label)}
+          title={`Copy ${label}`}
+        >
+          {copiedField === label ? (
+            <Check className="h-3 w-3 text-green-500" />
+          ) : (
+            <Copy className="h-3 w-3 text-muted-foreground" />
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+
   return (
     <AdminLayout title="Leads Management" subtitle="Track and manage all your business inquiries">
       <PageCard>
@@ -213,20 +256,19 @@ Postcode: ${selectedLead.event_postcode}
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Customer Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Event Date</TableHead>
-                    <TableHead>Time</TableHead>
+                    <TableHead>Customer</TableHead>
+                    <TableHead>Contact</TableHead>
+                    <TableHead>Event Type</TableHead>
+                    <TableHead>Booth Choice</TableHead>
+                    <TableHead>Date & Time</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Submitted On</TableHead>
                     <TableHead className="w-20">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {currentLeads.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         No leads found.
                       </TableCell>
                     </TableRow>
@@ -234,10 +276,20 @@ Postcode: ${selectedLead.event_postcode}
                     currentLeads.map((lead) => (
                       <TableRow key={lead.id}>
                         <TableCell className="font-medium">{lead.customer_name}</TableCell>
-                        <TableCell>{lead.email}</TableCell>
-                        <TableCell>{lead.phone_number}</TableCell>
-                        <TableCell>{formatDate(lead.event_date)}</TableCell>
-                        <TableCell>{lead.event_time}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col text-sm">
+                            <span>{lead.email}</span>
+                            <span className="text-muted-foreground text-xs">{lead.phone_number}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="capitalize">{lead.event_type || '-'}</TableCell>
+                        <TableCell>{lead.choice_of_photobooth || '-'}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-col text-sm">
+                            <span>{formatDate(lead.event_date)}</span>
+                            <span className="text-muted-foreground text-xs">{lead.event_time}</span>
+                          </div>
+                        </TableCell>
                         <TableCell>
                           <Select
                             value={lead.status}
@@ -257,9 +309,6 @@ Postcode: ${selectedLead.event_postcode}
                             </SelectContent>
                           </Select>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {formatDate(lead.created_at)}
-                        </TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -270,13 +319,13 @@ Postcode: ${selectedLead.event_postcode}
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Actions</DropdownMenuLabel>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleView(lead)}>
+                              <DropdownMenuItem onClick={() => handleView(lead)} className="cursor-pointer">
                                 <Eye className="mr-2 h-4 w-4" />
                                 View Details
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleDelete(lead.id)}
-                                className="text-destructive"
+                                className="text-destructive cursor-pointer"
                               >
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Delete
@@ -323,59 +372,56 @@ Postcode: ${selectedLead.event_postcode}
         </div>
       </PageCard>
 
-      {/* View Lead Modal (No changes here, keeping it compact) */}
+      {/* View Lead Modal */}
       <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Lead Details</DialogTitle>
-            <DialogDescription>Complete information for this inquiry</DialogDescription>
+            <DialogDescription>Hover over any detail to copy it individually.</DialogDescription>
           </DialogHeader>
+          
           {selectedLead && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2 sm:col-span-1">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Name</p>
-                  <p className="font-medium">{selectedLead.customer_name}</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 p-1">
+                
+                {/* Standard Details */}
+                <DetailRow label="Name" value={selectedLead.customer_name} />
+                <DetailRow label="Email" value={selectedLead.email} />
+                <DetailRow label="Phone" value={selectedLead.phone_number} />
+                
+                {/* New Event Details */}
+                <DetailRow label="Event Type" value={selectedLead.event_type} />
+                <DetailRow label="Booth Choice" value={selectedLead.choice_of_photobooth} />
+                <DetailRow label="No. of Guests" value={selectedLead.no_of_guests?.toString()} />
+                
+                {/* Logistics */}
+                <DetailRow label="Event Date" value={formatDate(selectedLead.event_date)} />
+                <DetailRow label="Event Time" value={selectedLead.event_time} />
+                <DetailRow label="Postcode" value={selectedLead.event_postcode} />
+                
+                {/* System / Status */}
+                <div className="col-span-2 sm:col-span-1 p-2 flex flex-col justify-center">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Status</p>
+                  <div><StatusBadge status={selectedLead.status} /></div>
                 </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Status</p>
-                  <StatusBadge status={selectedLead.status} />
-                </div>
-                <div className="col-span-2">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Email</p>
-                  <p>{selectedLead.email}</p>
-                </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Phone</p>
-                  <p>{selectedLead.phone_number}</p>
-                </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Postcode</p>
-                  <p>{selectedLead.event_postcode}</p>
-                </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Event Date</p>
-                  <p>{formatDate(selectedLead.event_date)}</p>
-                </div>
-                <div className="col-span-2 sm:col-span-1">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Event Time</p>
-                  <p>{selectedLead.event_time}</p>
-                </div>
-                <div className="col-span-2 border-t pt-2 mt-2">
-                  <p className="text-xs font-semibold uppercase text-muted-foreground">Submission Date</p>
-                  <p className="text-sm">{new Date(selectedLead.created_at).toLocaleString()}</p>
-                </div>
+                
+                <DetailRow 
+                  label="Submission Date" 
+                  value={new Date(selectedLead.created_at).toLocaleString()} 
+                />
               </div>
 
-              {/* Copy Button Section */}
-              <Button
-                onClick={handleCopyDetails}
-                className="w-full mt-4 gap-2"
-                variant="outline"
-              >
-                <Copy className="h-4 w-4" />
-                Copy Lead Details
-              </Button>
+              {/* Copy All Button */}
+              <div className="border-t pt-4 mt-2">
+                <Button
+                  onClick={handleCopyAllDetails}
+                  className="w-full gap-2"
+                  variant="outline"
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy All Details to Clipboard
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
