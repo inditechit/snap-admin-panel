@@ -7,7 +7,11 @@ import {
   Copy, 
   ChevronLeft, 
   ChevronRight,
-  Check
+  Check,
+  Calendar,
+  User,
+  MapPin,
+  Clock
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { PageCard } from "@/components/dashboard/PageCard";
@@ -45,7 +49,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
-// Updated Interface with new fields
+// --- INTERFACES ---
 interface Lead {
   id: number;
   customer_name: string;
@@ -74,7 +78,7 @@ const Leads = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 25;
 
-  // --- 1. FETCH LEADS FROM API ---
+  // --- 1. FETCH LEADS ---
   const fetchLeads = async () => {
     try {
       setLoading(true);
@@ -102,7 +106,7 @@ const Leads = () => {
     fetchLeads();
   }, []);
 
-  // --- 2. UPDATE STATUS API ---
+  // --- 2. UPDATE STATUS ---
   const handleStatusChange = async (leadId: number, newStatus: string) => {
     const originalLeads = [...leads];
     const updatedLeads = leads.map(lead =>
@@ -118,21 +122,17 @@ const Leads = () => {
       });
       
       const result = await response.json();
-      if (result.success) {
-        toast.success(`Status updated to ${newStatus}`);
-      } else {
-        throw new Error(result.error);
-      }
+      if (!result.success) throw new Error(result.error);
+      toast.success(`Status updated to ${newStatus}`);
     } catch (error) {
-      console.error("Update error:", error);
       toast.error("Failed to update status");
       setLeads(originalLeads);
     }
   };
 
-  // --- 3. DELETE LEAD API ---
+  // --- 3. DELETE LEAD ---
   const handleDelete = async (leadId: number) => {
-    if (!confirm("Are you sure you want to delete this lead? This cannot be undone.")) return;
+    if (!confirm("Are you sure? This cannot be undone.")) return;
 
     try {
       const response = await fetch(`https://api.clickplick.co.uk/api/leads/leads/${leadId}`, {
@@ -142,67 +142,41 @@ const Leads = () => {
       const result = await response.json();
       if (result.success) {
         setLeads(leads.filter(lead => lead.id !== leadId));
-        toast.success("Lead deleted successfully");
-        
-        if (currentLeads.length === 1 && currentPage > 1) {
-          setCurrentPage(prev => prev - 1);
-        }
-      } else {
-        toast.error("Failed to delete lead");
+        toast.success("Lead deleted");
+        if (currentLeads.length === 1 && currentPage > 1) setCurrentPage(prev => prev - 1);
       }
     } catch (error) {
-      console.error("Delete error:", error);
       toast.error("Error deleting lead");
     }
   };
 
-  const handleView = (lead: Lead) => {
-    setSelectedLead(lead);
-    setViewModalOpen(true);
-  };
-
-  // --- 4. COPY ALL DETAILS ---
-  const handleCopyAllDetails = () => {
-    if (!selectedLead) return;
-
-    const detailsText = `
-Lead Details:
--------------
-Name: ${selectedLead.customer_name}
-Email: ${selectedLead.email}
-Phone: ${selectedLead.phone_number}
-Event Type: ${selectedLead.event_type || 'N/A'}
-Photobooth: ${selectedLead.choice_of_photobooth || 'N/A'}
-Guests: ${selectedLead.no_of_guests || 'N/A'}
-Event Date: ${formatDate(selectedLead.event_date)}
-Event Time: ${selectedLead.event_time}
-Postcode: ${selectedLead.event_postcode}
-Status: ${selectedLead.status}
-    `.trim();
-
-    navigator.clipboard.writeText(detailsText);
-    toast.success("All lead details copied to clipboard!");
-  };
-
-  // --- 5. COPY INDIVIDUAL DETAIL ---
+  // --- 4. COPY LOGIC ---
   const handleCopyIndividual = (text: string, fieldName: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
     toast.success(`${fieldName} copied!`);
-    
-    // Reset copy icon checkmark after 2 seconds
-    setTimeout(() => {
-      setCopiedField(null);
-    }, 2000);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const handleCopyAllDetails = () => {
+    if (!selectedLead) return;
+    const detailsText = `
+Lead Details:
+Name: ${selectedLead.customer_name}
+Email: ${selectedLead.email}
+Phone: ${selectedLead.phone_number}
+Event: ${selectedLead.event_type} (${selectedLead.event_date})
+Booth: ${selectedLead.choice_of_photobooth}
+    `.trim();
+    navigator.clipboard.writeText(detailsText);
+    toast.success("All details copied!");
   };
 
   const formatDate = (dateString: string) => {
     if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
+      year: 'numeric', month: 'short', day: 'numeric'
     });
   };
 
@@ -212,32 +186,26 @@ Status: ${selectedLead.status}
   const currentLeads = leads.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(leads.length / itemsPerPage);
 
-  const nextPage = () => {
-    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
-  };
-
-  const prevPage = () => {
-    if (currentPage > 1) setCurrentPage(currentPage - 1);
-  };
-
-  // --- HELPER COMPONENT FOR MODAL ROWS ---
-  const DetailRow = ({ label, value }: { label: string; value: string }) => (
-    <div className="col-span-2 sm:col-span-1 group relative flex flex-col justify-center rounded-md p-2 hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
-      <div className="flex items-center justify-between w-full">
-        <p className="font-medium text-sm break-words pr-2">{value || 'N/A'}</p>
+  // --- MODAL HELPER COMPONENT ---
+  const DetailRow = ({ label, value, icon: Icon }: { label: string; value: string; icon?: any }) => (
+    <div className="group flex flex-col justify-center rounded-lg border border-transparent p-3 transition-colors hover:border-border hover:bg-muted/50 sm:p-2">
+      <div className="flex items-center gap-1.5 mb-1">
+        {Icon && <Icon className="h-3 w-3 text-muted-foreground" />}
+        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </p>
+      </div>
+      <div className="flex items-center justify-between w-full gap-2">
+        <p className="text-sm font-medium leading-tight break-all sm:break-words">
+          {value || 'N/A'}
+        </p>
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+          className="h-8 w-8 shrink-0 opacity-100 sm:h-6 sm:w-6 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
           onClick={() => handleCopyIndividual(value, label)}
-          title={`Copy ${label}`}
         >
-          {copiedField === label ? (
-            <Check className="h-3 w-3 text-green-500" />
-          ) : (
-            <Copy className="h-3 w-3 text-muted-foreground" />
-          )}
+          {copiedField === label ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
         </Button>
       </div>
     </div>
@@ -248,88 +216,44 @@ Status: ${selectedLead.status}
       <PageCard>
         <div className="overflow-x-auto">
           {loading ? (
-            <div className="flex h-48 items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
+            <div className="flex h-48 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
           ) : (
             <>
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Customer</TableHead>
-                    <TableHead>Contact</TableHead>
+                    <TableHead className="hidden md:table-cell">Contact</TableHead>
                     <TableHead>Event Type</TableHead>
-                    <TableHead>Booth Choice</TableHead>
-                    <TableHead>Date & Time</TableHead>
+                    <TableHead className="hidden sm:table-cell">Booth Choice</TableHead>
+                    <TableHead>Date</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="w-20">Actions</TableHead>
+                    <TableHead className="w-16">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {currentLeads.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No leads found.
-                      </TableCell>
-                    </TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-8">No leads found.</TableCell></TableRow>
                   ) : (
                     currentLeads.map((lead) => (
                       <TableRow key={lead.id}>
                         <TableCell className="font-medium">{lead.customer_name}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-col text-sm">
-                            <span>{lead.email}</span>
-                            <span className="text-muted-foreground text-xs">{lead.phone_number}</span>
-                          </div>
-                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-xs">{lead.email}</TableCell>
                         <TableCell className="capitalize">{lead.event_type || '-'}</TableCell>
-                        <TableCell>{lead.choice_of_photobooth || '-'}</TableCell>
+                        <TableCell className="hidden sm:table-cell">{lead.choice_of_photobooth || '-'}</TableCell>
+                        <TableCell className="text-sm">{formatDate(lead.event_date)}</TableCell>
                         <TableCell>
-                          <div className="flex flex-col text-sm">
-                            <span>{formatDate(lead.event_date)}</span>
-                            <span className="text-muted-foreground text-xs">{lead.event_time}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Select
-                            value={lead.status}
-                            onValueChange={(value) => handleStatusChange(lead.id, value)}
-                          >
-                            <SelectTrigger className="w-32 h-8">
-                              <SelectValue>
-                                <StatusBadge status={lead.status} />
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {statusOptions.map((status) => (
-                                <SelectItem key={status} value={status}>
-                                  <StatusBadge status={status} />
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
+                          <Select value={lead.status} onValueChange={(val) => handleStatusChange(lead.id, val)}>
+                            <SelectTrigger className="w-28 h-8 sm:w-32"><SelectValue><StatusBadge status={lead.status} /></SelectValue></SelectTrigger>
+                            <SelectContent>{statusOptions.map(s => <SelectItem key={s} value={s}><StatusBadge status={s} /></SelectItem>)}</SelectContent>
                           </Select>
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleView(lead)} className="cursor-pointer">
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => handleDelete(lead.id)}
-                                className="text-destructive cursor-pointer"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => { setSelectedLead(lead); setViewModalOpen(true); }} className="cursor-pointer"><Eye className="mr-2 h-4 w-4" /> View</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleDelete(lead.id)} className="text-destructive cursor-pointer"><Trash2 className="mr-2 h-4 w-4" /> Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -339,91 +263,63 @@ Status: ${selectedLead.status}
                 </TableBody>
               </Table>
 
-              {/* PAGINATION CONTROLS */}
-              {leads.length > 0 && (
-                <div className="flex items-center justify-end space-x-2 py-4 px-2">
-                  <div className="flex-1 text-sm text-muted-foreground">
-                    Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, leads.length)} of {leads.length} entries
-                  </div>
-                  <div className="space-x-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={prevPage}
-                      disabled={currentPage === 1}
-                    >
-                      <ChevronLeft className="h-4 w-4 mr-1" />
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={nextPage}
-                      disabled={currentPage === totalPages}
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4 ml-1" />
-                    </Button>
-                  </div>
+              {/* PAGINATION */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 px-2 border-t">
+                <p className="text-xs text-muted-foreground italic">Showing {indexOfFirstItem + 1}-{Math.min(indexOfLastItem, leads.length)} of {leads.length}</p>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p - 1)} disabled={currentPage === 1}><ChevronLeft className="h-4 w-4" /></Button>
+                  <span className="text-xs font-medium">Page {currentPage} of {totalPages}</span>
+                  <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => p + 1)} disabled={currentPage === totalPages}><ChevronRight className="h-4 w-4" /></Button>
                 </div>
-              )}
+              </div>
             </>
           )}
         </div>
       </PageCard>
 
-      {/* View Lead Modal */}
+      {/* --- RESPONSIVE MODAL --- */}
       <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Lead Details</DialogTitle>
-            <DialogDescription>Hover over any detail to copy it individually.</DialogDescription>
-          </DialogHeader>
-          
-          {selectedLead && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2 p-1">
-                
-                {/* Standard Details */}
-                <DetailRow label="Name" value={selectedLead.customer_name} />
-                <DetailRow label="Email" value={selectedLead.email} />
-                <DetailRow label="Phone" value={selectedLead.phone_number} />
-                
-                {/* New Event Details */}
-                <DetailRow label="Event Type" value={selectedLead.event_type} />
-                <DetailRow label="Booth Choice" value={selectedLead.choice_of_photobooth} />
-                <DetailRow label="No. of Guests" value={selectedLead.no_of_guests?.toString()} />
-                
-                {/* Logistics */}
-                <DetailRow label="Event Date" value={formatDate(selectedLead.event_date)} />
-                <DetailRow label="Event Time" value={selectedLead.event_time} />
-                <DetailRow label="Postcode" value={selectedLead.event_postcode} />
-                
-                {/* System / Status */}
-                <div className="col-span-2 sm:col-span-1 p-2 flex flex-col justify-center">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Status</p>
-                  <div><StatusBadge status={selectedLead.status} /></div>
-                </div>
-                
-                <DetailRow 
-                  label="Submission Date" 
-                  value={new Date(selectedLead.created_at).toLocaleString()} 
-                />
-              </div>
+        <DialogContent className="max-h-[90vh] w-[95vw] overflow-hidden p-0 sm:max-w-lg">
+          <div className="flex h-full flex-col">
+            <DialogHeader className="p-6 pb-2">
+              <DialogTitle className="text-xl">Inquiry Details</DialogTitle>
+              <DialogDescription>Full lead information and event logistics.</DialogDescription>
+            </DialogHeader>
 
-              {/* Copy All Button */}
-              <div className="border-t pt-4 mt-2">
-                <Button
-                  onClick={handleCopyAllDetails}
-                  className="w-full gap-2"
-                  variant="outline"
-                >
-                  <Copy className="h-4 w-4" />
-                  Copy All Details to Clipboard
-                </Button>
-              </div>
-            </div>
-          )}
+            {selectedLead && (
+              <>
+                <div className="flex-1 overflow-y-auto px-6 py-2">
+                  <div className="grid grid-cols-1 gap-3 pb-6 sm:grid-cols-2">
+                    <div className="col-span-full border-b pb-1 pt-2"><p className="text-xs font-bold text-primary">Customer Information</p></div>
+                    <DetailRow icon={User} label="Full Name" value={selectedLead.customer_name} />
+                    <DetailRow label="Email Address" value={selectedLead.email} />
+                    <DetailRow label="Phone" value={selectedLead.phone_number} />
+                    
+                    <div className="col-span-full border-b pb-1 pt-4"><p className="text-xs font-bold text-primary">Event Specifics</p></div>
+                    <DetailRow label="Event Type" value={selectedLead.event_type} />
+                    <DetailRow label="Booth Choice" value={selectedLead.choice_of_photobooth} />
+                    <DetailRow label="Guest Count" value={selectedLead.no_of_guests} />
+                    
+                    <div className="col-span-full border-b pb-1 pt-4"><p className="text-xs font-bold text-primary">Logistics</p></div>
+                    <DetailRow icon={Calendar} label="Date" value={formatDate(selectedLead.event_date)} />
+                    <DetailRow icon={Clock} label="Time" value={selectedLead.event_time} />
+                    <DetailRow icon={MapPin} label="Postcode" value={selectedLead.event_postcode} />
+                    
+                    <div className="col-span-full mt-4 flex items-center justify-between rounded-lg bg-muted/40 p-3">
+                      <p className="text-xs font-bold uppercase text-muted-foreground">Current Status</p>
+                      <StatusBadge status={selectedLead.status} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="sticky bottom-0 border-t bg-background p-4 sm:p-6">
+                  <Button onClick={handleCopyAllDetails} className="w-full gap-2" variant="default">
+                    <Copy className="h-4 w-4" /> Copy All Details
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </AdminLayout>
