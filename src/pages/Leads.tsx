@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { 
   Eye, 
   MoreHorizontal, 
@@ -13,12 +13,15 @@ import {
   MapPin,
   Clock,
   Mail,
-  Phone
+  Phone,
+  Search,
+  X
 } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { PageCard } from "@/components/dashboard/PageCard";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -75,6 +78,9 @@ const Leads = () => {
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // --- SEARCH STATE ---
+  const [searchQuery, setSearchQuery] = useState("");
 
   // --- PAGINATION STATE ---
   const [currentPage, setCurrentPage] = useState(1);
@@ -149,10 +155,6 @@ const Leads = () => {
       if (result.success) {
         setLeads(leads.filter(lead => lead.id !== leadId));
         toast.success("Lead deleted successfully");
-        
-        if (currentLeads.length === 1 && currentPage > 1) {
-          setCurrentPage(prev => prev - 1);
-        }
       } else {
         toast.error("Failed to delete lead");
       }
@@ -162,21 +164,48 @@ const Leads = () => {
     }
   };
 
-  // --- 4. COPY LOGIC ---
+  // --- 4. FILTERING LOGIC ---
+  const filteredLeads = useMemo(() => {
+    return leads.filter((lead) => {
+      const searchStr = searchQuery.toLowerCase();
+      return (
+        lead.customer_name?.toLowerCase().includes(searchStr) ||
+        lead.email?.toLowerCase().includes(searchStr) ||
+        lead.phone_number?.includes(searchStr)
+      );
+    });
+  }, [leads, searchQuery]);
+
+  // Reset to page 1 when search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
+
+  // --- 5. PAGINATION LOGIC ---
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentLeads = filteredLeads.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredLeads.length / itemsPerPage);
+
+  const nextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
+
+  const prevPage = () => {
+    if (currentPage > 1) setCurrentPage(currentPage - 1);
+  };
+
+  // --- HELPERS ---
   const handleCopyIndividual = (text: string, fieldName: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text);
     setCopiedField(fieldName);
     toast.success(`${fieldName} copied!`);
-    
-    setTimeout(() => {
-      setCopiedField(null);
-    }, 2000);
+    setTimeout(() => setCopiedField(null), 2000);
   };
 
   const handleCopyAllDetails = () => {
     if (!selectedLead) return;
-
     const detailsText = `
 Lead Details:
 -------------
@@ -191,9 +220,8 @@ Event Time: ${selectedLead.event_time}
 Postcode: ${selectedLead.event_postcode}
 Status: ${selectedLead.status}
     `.trim();
-
     navigator.clipboard.writeText(detailsText);
-    toast.success("All lead details copied to clipboard!");
+    toast.success("All lead details copied!");
   };
 
   const formatDate = (dateString: string) => {
@@ -205,44 +233,22 @@ Status: ${selectedLead.status}
     });
   };
 
-  // --- PAGINATION LOGIC ---
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentLeads = leads.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(leads.length / itemsPerPage);
-
-  const nextPage = () => {
-    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
-  };
-
-  const prevPage = () => {
-    if (currentPage > 1) setCurrentPage(currentPage - 1);
-  };
-
-  // --- MODAL ROW COMPONENT (STRICT 2-COLUMN) ---
+  // --- MODAL ROW COMPONENT ---
   const DetailRow = ({ label, value, icon: Icon }: { label: string; value: string; icon?: any }) => (
     <div className="group flex flex-col justify-center rounded-lg border border-transparent p-2 transition-colors hover:border-border hover:bg-muted/50">
       <div className="flex items-center gap-1 mb-1">
         {Icon && <Icon className="h-2.5 w-2.5 text-muted-foreground shrink-0" />}
-        <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground truncate">
-          {label}
-        </p>
+        <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground truncate">{label}</p>
       </div>
       <div className="flex items-center justify-between w-full gap-1">
-        <p className="text-[11px] sm:text-sm font-medium leading-tight truncate">
-          {value || 'N/A'}
-        </p>
+        <p className="text-[11px] sm:text-sm font-medium leading-tight truncate">{value || 'N/A'}</p>
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 shrink-0 opacity-100 transition-opacity"
+          className="h-6 w-6 shrink-0"
           onClick={() => handleCopyIndividual(value, label)}
         >
-          {copiedField === label ? (
-            <Check className="h-3 w-3 text-green-500" />
-          ) : (
-            <Copy className="h-3 w-3 text-muted-foreground" />
-          )}
+          {copiedField === label ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3 text-muted-foreground" />}
         </Button>
       </div>
     </div>
@@ -250,6 +256,29 @@ Status: ${selectedLead.status}
 
   return (
     <AdminLayout title="Leads Management" subtitle="Track and manage all your business inquiries">
+      <div className="mb-6 flex flex-col sm:flex-row gap-4 items-center justify-between">
+        <div className="relative w-full sm:max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search name, email, or phone..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 pr-9"
+          />
+          {searchQuery && (
+            <button 
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Found <strong>{filteredLeads.length}</strong> leads
+        </div>
+      </div>
+
       <PageCard>
         <div className="overflow-x-auto">
           {loading ? (
@@ -274,7 +303,7 @@ Status: ${selectedLead.status}
                   {currentLeads.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                        No leads found.
+                        {searchQuery ? "No results match your search." : "No leads found."}
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -342,30 +371,17 @@ Status: ${selectedLead.status}
                 </TableBody>
               </Table>
 
-              {/* PAGINATION CONTROLS */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 py-4 px-2 border-t text-sm text-muted-foreground">
                 <div className="italic">
-                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, leads.length)} of {leads.length} entries
+                  Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredLeads.length)} of {filteredLeads.length} entries
                 </div>
                 <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={prevPage}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Prev
+                  <Button variant="outline" size="sm" onClick={prevPage} disabled={currentPage === 1}>
+                    <ChevronLeft className="h-4 w-4 mr-1" /> Prev
                   </Button>
-                  <span className="px-2 font-medium text-foreground">Page {currentPage} of {totalPages}</span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={nextPage}
-                    disabled={currentPage === totalPages}
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4 ml-1" />
+                  <span className="px-2 font-medium text-foreground">Page {currentPage} of {totalPages || 1}</span>
+                  <Button variant="outline" size="sm" onClick={nextPage} disabled={currentPage === totalPages || totalPages === 0}>
+                    Next <ChevronRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
               </div>
@@ -374,7 +390,6 @@ Status: ${selectedLead.status}
         </div>
       </PageCard>
 
-      {/* --- STRICT 2-COLUMN RESPONSIVE MODAL --- */}
       <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
         <DialogContent className="max-h-[95vh] w-[95vw] overflow-hidden p-0 sm:max-w-lg">
           <div className="flex h-full flex-col">
@@ -387,8 +402,6 @@ Status: ${selectedLead.status}
               <>
                 <div className="flex-1 overflow-y-auto px-4 py-3">
                   <div className="grid grid-cols-2 gap-x-2 gap-y-3">
-                    
-                    {/* Customer Section */}
                     <div className="col-span-2">
                       <p className="text-[10px] font-bold text-primary uppercase tracking-widest border-l-2 border-primary pl-2">Customer</p>
                     </div>
@@ -397,8 +410,6 @@ Status: ${selectedLead.status}
                     <div className="col-span-2">
                        <DetailRow icon={Mail} label="Email Address" value={selectedLead.email} />
                     </div>
-                    
-                    {/* Event Section */}
                     <div className="col-span-2 mt-2">
                       <p className="text-[10px] font-bold text-primary uppercase tracking-widest border-l-2 border-primary pl-2">The Event</p>
                     </div>
@@ -406,29 +417,22 @@ Status: ${selectedLead.status}
                     <DetailRow label="Booth" value={selectedLead.choice_of_photobooth} />
                     <DetailRow label="Guests" value={selectedLead.no_of_guests} />
                     <DetailRow icon={MapPin} label="Postcode" value={selectedLead.event_postcode} />
-                    
-                    {/* Timing Section */}
                     <div className="col-span-2 mt-2">
                       <p className="text-[10px] font-bold text-primary uppercase tracking-widest border-l-2 border-primary pl-2">Timing</p>
                     </div>
                     <DetailRow icon={Calendar} label="Date" value={formatDate(selectedLead.event_date)} />
                     <DetailRow icon={Clock} label="Start Time" value={selectedLead.event_time} />
-                    
-                    {/* Status Banner */}
                     <div className="col-span-2 mt-4 flex items-center justify-between rounded-lg bg-muted/50 p-3 border">
                       <p className="text-[10px] font-bold uppercase text-muted-foreground">Current Status</p>
                       <StatusBadge status={selectedLead.status} />
                     </div>
                   </div>
                 </div>
-
                 <div className="sticky bottom-0 border-t bg-background p-4 flex flex-col gap-2">
                   <Button onClick={handleCopyAllDetails} className="w-full gap-2 text-xs font-semibold h-10" variant="default">
                     <Copy className="h-3.5 w-3.5" /> Copy Full Summary
                   </Button>
-                  <Button onClick={() => setViewModalOpen(false)} variant="ghost" className="text-xs h-8">
-                    Close Details
-                  </Button>
+                  <Button onClick={() => setViewModalOpen(false)} variant="ghost" className="text-xs h-8">Close Details</Button>
                 </div>
               </>
             )}
