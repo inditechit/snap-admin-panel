@@ -187,6 +187,12 @@ const Gallery = () => {
                       <SelectItem value="Parties">Parties</SelectItem>
                       <SelectItem value="Corporate">Corporate</SelectItem>
                       <SelectItem value="Booths">Booths</SelectItem>
+                      <SelectItem value="EnchantedMirror">EnchantedMirror</SelectItem>
+                      <SelectItem value="LcdSlimlinePod">LcdSlimlinePod</SelectItem>
+                      <SelectItem value="MagicMirror">MagicMirror</SelectItem>
+                      <SelectItem value="RetroBox">RetroBox</SelectItem>
+                      <SelectItem value="InflatableBooth">InflatableBooth</SelectItem>
+                      <SelectItem value="WoodenTripod">WoodenTripod</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
