@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Trash2, Loader2, Image as ImageIcon } from "lucide-react";
+import { Plus, Trash2, Loader2, Image as ImageIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { PageCard } from "@/components/dashboard/PageCard";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import imageCompression from "browser-image-compression"; // 1. Import the library
+import imageCompression from "browser-image-compression"; 
 
 // API Configuration
 const API_BASE_URL = "https://api.clickplick.co.uk";
@@ -40,9 +40,13 @@ const Gallery = () => {
   const [loading, setLoading] = useState(true);
   const [addModalOpen, setAddModalOpen] = useState(false);
   
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const imagesPerPage = 12; // Adjust this number to show more/less images per page
+  
   // Upload State
   const [uploading, setUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState(""); // To show "Compressing..." vs "Uploading..."
+  const [uploadStatus, setUploadStatus] = useState(""); 
   const [newCategory, setNewCategory] = useState("Weddings");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -67,6 +71,22 @@ const Gallery = () => {
     fetchImages();
   }, []);
 
+  // --- PAGINATION LOGIC ---
+  const indexOfLastImage = currentPage * imagesPerPage;
+  const indexOfFirstImage = indexOfLastImage - imagesPerPage;
+  const currentImages = images.slice(indexOfFirstImage, indexOfLastImage);
+  const totalPages = Math.ceil(images.length / imagesPerPage);
+
+  // Prevent being stuck on an empty page if an item is deleted
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(totalPages);
+    }
+  }, [images.length, currentPage, totalPages]);
+
+  const handlePrevPage = () => setCurrentPage((prev) => Math.max(prev - 1, 1));
+  const handleNextPage = () => setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+
   // --- 2. ADD IMAGE (WITH COMPRESSION) ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -81,32 +101,25 @@ const Gallery = () => {
     }
 
     setUploading(true);
-    setUploadStatus("Compressing..."); // Feedback to user
+    setUploadStatus("Compressing..."); 
 
     try {
-      // --- COMPRESSION LOGIC STARTS HERE ---
       const options = {
-        maxSizeMB: 0.5,          // Target: Under 500KB
-        maxWidthOrHeight: 1920,  // Resize huge images to 1920px (HD)
-        useWebWorker: true,      // Run in background to avoid freezing UI
-        fileType: "image/webp",  // Force conversion to WebP
-        initialQuality: 0.8,     // Start at 80% quality
+        maxSizeMB: 0.5,          
+        maxWidthOrHeight: 1920,  
+        useWebWorker: true,      
+        fileType: "image/webp",  
+        initialQuality: 0.8,     
       };
 
-      // Compress the file
       const compressedFile = await imageCompression(selectedFile, options);
-      
-      // If we need to rename the file to have .webp extension
       const newFileName = selectedFile.name.replace(/\.[^/.]+$/, "") + ".webp";
       const finalFile = new File([compressedFile], newFileName, { type: "image/webp" });
-
-      console.log(`Original: ${selectedFile.size / 1024}KB, Compressed: ${finalFile.size / 1024}KB`);
-      // --- COMPRESSION LOGIC ENDS HERE ---
 
       setUploadStatus("Uploading...");
 
       const formData = new FormData();
-      formData.append("image", finalFile); // Send the COMPRESSED file
+      formData.append("image", finalFile); 
       formData.append("category", newCategory);
 
       const response = await fetch(`${API_BASE_URL}/api/gallery`, {
@@ -119,6 +132,7 @@ const Gallery = () => {
       toast.success("Image uploaded successfully");
       setAddModalOpen(false);
       setSelectedFile(null);
+      setCurrentPage(1); // Reset to first page so user sees new upload
       fetchImages();
     } catch (error) {
       console.error("Upload error:", error);
@@ -243,47 +257,77 @@ const Gallery = () => {
             <p>No images found</p>
           </div>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {images.map((image) => (
-              <div
-                key={image.id}
-                className="group relative overflow-hidden rounded-lg border bg-card shadow-card transition-all hover:shadow-card-md"
-              >
-                <div className="aspect-[4/3] overflow-hidden bg-gray-100 relative">
-                  <img
-                    src={getImageUrl(image.image_url)}
-                    alt={image.type}
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    loading="lazy"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = "https://placehold.co/600x400?text=Image+Not+Found";
-                    }}
-                  />
-                  {/* Overlay for Actions */}
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                     <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => handleDelete(image.id)}
-                      className="h-8 w-8 p-0"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+          <div className="space-y-6">
+            {/* Grid */}
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {currentImages.map((image) => (
+                <div
+                  key={image.id}
+                  className="group relative overflow-hidden rounded-lg border bg-card shadow-card transition-all hover:shadow-card-md"
+                >
+                  <div className="aspect-[4/3] overflow-hidden bg-gray-100 relative">
+                    <img
+                      src={getImageUrl(image.image_url)}
+                      alt={image.type}
+                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      loading="lazy"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://placehold.co/600x400?text=Image+Not+Found";
+                      }}
+                    />
+                    {/* Overlay for Actions */}
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                       <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDelete(image.id)}
+                        className="h-8 w-8 p-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="p-3">
+                    <div className="flex items-center justify-between">
+                      <Badge variant="secondary" className="font-medium">
+                        {image.type || "General"}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(image.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-4 pt-6 pb-2 border-t mt-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrevPage}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                </Button>
                 
-                <div className="p-3">
-                  <div className="flex items-center justify-between">
-                    <Badge variant="secondary" className="font-medium">
-                      {image.type || "General"}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(image.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </div>
+                <span className="text-sm font-medium text-muted-foreground">
+                  Page {currentPage} of {totalPages}
+                </span>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                >
+                  Next <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
               </div>
-            ))}
+            )}
           </div>
         )}
       </PageCard>

@@ -9,8 +9,8 @@ import {
   ChevronRight,
   LogOut,
   ChartBar,
-  Menu, // Imported Menu for mobile toggle
-  X     // Imported X for mobile close
+  Menu, 
+  X     
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -30,20 +30,31 @@ export function AdminSidebar() {
   const location = useLocation();
   const { logout } = useAuth();
 
+  // Retrieve user to check permissions
+  const userStr = localStorage.getItem("app_user");
+  const user = userStr ? JSON.parse(userStr) : null;
+  const isContentUser = user?.username?.toLowerCase() === "content";
+
+  // Filter items based on role
+  const filteredNavItems = navItems.filter((item) => {
+    if (isContentUser) {
+      // Content user only sees Gallery and Blogs
+      return item.path === "/blogs" || item.path === "/gallery";
+    }
+    // Admin sees everything
+    return true; 
+  });
+
   // Handle screen size detection
   useEffect(() => {
     const checkScreenSize = () => {
       setIsMobile(window.innerWidth < 768);
-      // Automatically close mobile menu if screen is resized to desktop
       if (window.innerWidth >= 768) {
         setMobileOpen(false);
       }
     };
 
-    // Initial check
     checkScreenSize();
-    
-    // Listen for window resize
     window.addEventListener("resize", checkScreenSize);
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
@@ -81,9 +92,7 @@ export function AdminSidebar() {
       <aside
         className={cn(
           "fixed left-0 top-0 z-40 flex h-screen flex-col bg-sidebar border-r border-sidebar-border transition-transform duration-300 md:translate-x-0",
-          // Handle Desktop Width
           !isMobile && (collapsed ? "w-16" : "w-64"),
-          // Handle Mobile Width & Visibility
           isMobile ? "w-64" : "",
           isMobile && !mobileOpen ? "-translate-x-full" : "translate-x-0"
         )}
@@ -109,9 +118,9 @@ export function AdminSidebar() {
           )}
         </div>
 
-        {/* Navigation */}
+        {/* Navigation - using filteredNavItems here */}
         <nav className="flex flex-1 flex-col gap-1 p-3">
-          {navItems.map((item) => {
+          {filteredNavItems.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <NavLink

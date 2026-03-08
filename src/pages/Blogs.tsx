@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
+import imageCompression from "browser-image-compression"; // Added compression library
 import { 
   Plus, 
   Edit, 
@@ -51,7 +52,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner"; // Using sonner based on previous context, or change to useToast if you prefer
+import { toast } from "sonner";
 
 const API_URL = "https://api.clickplick.co.uk/api";
 const API_URL2 = "https://api.clickplick.co.uk";
@@ -68,6 +69,7 @@ const Blogs = () => {
   const [currentStep, setCurrentStep] = useState(1); // 1 = Details, 2 = Editor
   const [selectedBlog, setSelectedBlog] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(""); // Track upload vs compression
 
   // Form States
   const [formData, setFormData] = useState({
@@ -121,25 +123,51 @@ const Blogs = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleImageUpload = async (e: any) => {
-    const file = e.target.files[0];
+  // --- IMAGE UPLOAD WITH COMPRESSION ---
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (!file) return;
 
-    const imageData = new FormData();
-    imageData.append("image", file);
-
     setIsSubmitting(true);
+    setUploadStatus("Compressing...");
+
     try {
+      // 1. Compress and convert to WebP
+      const options = {
+        maxSizeMB: 0.5,          // Target: Under 500KB
+        maxWidthOrHeight: 1200,  // Good max width for blog featured images
+        useWebWorker: true,
+        fileType: "image/webp",
+        initialQuality: 0.8,
+      };
+
+      const compressedFile = await imageCompression(file, options);
+      
+      // Rename file extension to .webp
+      const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
+      const finalFile = new File([compressedFile], newFileName, { type: "image/webp" });
+
+      console.log(`Original: ${(file.size / 1024).toFixed(2)}KB, Compressed: ${(finalFile.size / 1024).toFixed(2)}KB`);
+
+      // 2. Upload the compressed image
+      setUploadStatus("Uploading...");
+      const imageData = new FormData();
+      imageData.append("image", finalFile);
+
       const res = await axios.post(`${API_URL}/gallery`, imageData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
+
       setFormData((prev) => ({ ...prev, link: res.data.url }));
-      toast.success("Image uploaded successfully");
+      toast.success("Image compressed and uploaded");
     } catch (error) {
       console.error("Upload error:", error);
       toast.error("Image upload failed");
     } finally {
       setIsSubmitting(false);
+      setUploadStatus("");
+      // Clear the input value so the same file can be selected again if needed
+      e.target.value = '';
     }
   };
 
@@ -203,7 +231,7 @@ const Blogs = () => {
       attr: "",
       language: "en"
     });
-    setCurrentStep(1); // Reset step
+    setCurrentStep(1); 
   };
 
   const openEditModal = (blog: any) => {
@@ -219,12 +247,11 @@ const Blogs = () => {
       attr: blog.attr,
       language: blog.language || "en"
     });
-    setCurrentStep(1); // Reset step
+    setCurrentStep(1); 
     setEditModalOpen(true);
   };
 
   const handleNextStep = () => {
-    // Simple validation
     if (!formData.title || !formData.category_id) {
       toast.error("Please fill in Title and Category first");
       return;
@@ -244,7 +271,6 @@ const Blogs = () => {
   };
 
   // --- Render Component for Form Steps ---
-  // We reuse this logic for both Add and Edit modals
   const renderFormContent = () => (
     <div className="py-4">
       {/* STEP 1: Details */}
@@ -279,8 +305,22 @@ const Blogs = () => {
             <Label>Featured Image</Label>
             <div className="flex gap-4 items-start border p-3 rounded-md bg-muted/20">
               <div className="flex-1">
-                <Input type="file" accept="image/*" onChange={handleImageUpload} className="mb-2"/>
-                <p className="text-xs text-muted-foreground">Recommended size: 1200x630px</p>
+                <Input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={handleImageUpload} 
+                  className="mb-2"
+                  disabled={!!uploadStatus}
+                />
+                {uploadStatus ? (
+                  <p className="text-xs text-blue-600 flex items-center gap-1.5 font-medium">
+                    <Loader2 className="h-3 w-3 animate-spin" /> {uploadStatus}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Will be automatically compressed and converted to WebP.
+                  </p>
+                )}
               </div>
               {formData.link ? (
                 <img src={`${API_URL2}${formData.link}`} alt="Preview" className="h-16 w-24 object-cover rounded border bg-white" />
@@ -334,6 +374,29 @@ const Blogs = () => {
     </div>
   );
 
+  // Reusable function to render actions column
+  const renderActions = (blog: any) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon">
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={() => openEditModal(blog)}>
+          <Edit className="mr-2 h-4 w-4" />
+          Edit
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleDelete(blog.id)} className="text-destructive">
+          <Trash2 className="mr-2 h-4 w-4" />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return (
     <AdminLayout title="Blogs Management" subtitle="Create and manage blog posts">
       <PageCard
@@ -361,7 +424,7 @@ const Blogs = () => {
                 {currentStep === 1 ? (
                   <>
                     <Button variant="ghost" onClick={() => setAddModalOpen(false)}>Cancel</Button>
-                    <Button onClick={handleNextStep}>
+                    <Button onClick={handleNextStep} disabled={!!uploadStatus}>
                       Next Step <ArrowRight className="ml-2 h-4 w-4" />
                     </Button>
                   </>
@@ -413,11 +476,11 @@ const Blogs = () => {
                          <img
                            src={`${API_URL2}${blog.link}`}
                            alt={blog.title}
-                           className="h-10 w-16 rounded object-cover border"
+                           className="h-10 w-16 rounded object-cover border bg-muted"
                            onError={(e: any) => { e.target.src = "https://placehold.co/100?text=No+Img"; }}
                          />
                       ) : (
-                        <div className="h-10 w-16 bg-muted rounded flex items-center justify-center">
+                        <div className="h-10 w-16 bg-muted rounded border flex items-center justify-center">
                           <ImageIcon className="h-4 w-4 text-muted-foreground" />
                         </div>
                       )}
@@ -431,25 +494,7 @@ const Blogs = () => {
                     <TableCell>{blog.author}</TableCell>
                     <TableCell>{new Date(blog.created_at).toLocaleDateString()}</TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => openEditModal(blog)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleDelete(blog.id)} className="text-destructive">
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {renderActions(blog)}
                     </TableCell>
                   </TableRow>
                 ))
@@ -459,7 +504,7 @@ const Blogs = () => {
         </div>
       </PageCard>
 
-      {/* Edit Modal (Reuses logic but separate Dialog for cleanliness) */}
+      {/* Edit Modal */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
         <DialogContent className={currentStep === 2 ? "sm:max-w-4xl" : "sm:max-w-xl"}>
           <DialogHeader>
@@ -475,7 +520,7 @@ const Blogs = () => {
             {currentStep === 1 ? (
               <>
                 <Button variant="ghost" onClick={() => setEditModalOpen(false)}>Cancel</Button>
-                <Button onClick={handleNextStep}>
+                <Button onClick={handleNextStep} disabled={!!uploadStatus}>
                   Next Step <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               </>
