@@ -28,11 +28,7 @@ export function AdminSidebar() {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
-  const { logout } = useAuth();
-
-  // Retrieve user to check permissions
-  const userStr = localStorage.getItem("app_user");
-  const user = userStr ? JSON.parse(userStr) : null;
+  const { user, logout } = useAuth();
   const isContentUser = user?.username?.toLowerCase() === "content";
 
   // Filter items based on role

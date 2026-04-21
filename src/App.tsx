@@ -17,13 +17,13 @@ import NotFound from "./pages/NotFound";
 import { AuthProvider } from "./lib/AuthContext";
 import LoginPage from "./pages/LoginPage";
 import { ProtectedRoute } from "./lib/ProtectedRoute";
+import { useAuth } from "./lib/AuthContext";
 
 const queryClient = new QueryClient();
 
 // Helper Component to protect Admin-only routes
 const AdminOnlyRoute = ({ children }: { children: React.ReactNode }) => {
-  const userStr = localStorage.getItem("app_user");
-  const user = userStr ? JSON.parse(userStr) : null;
+  const { user } = useAuth();
   const isContentUser = user?.username?.toLowerCase() === "content";
 
   // If the user is "content", boot them to the blogs page

@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { clearAuthTokens, getAccessToken, getRefreshToken, setAuthTokens, API_BASE_URL } from "./api";
 
 interface User {
   id: number;
@@ -9,9 +10,10 @@ interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (user: User, token: string) => void;
+  login: (user: User, accessToken: string, refreshToken: string) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -19,33 +21,76 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check localStorage on load
+    const bootstrapAuth = async () => {
     const storedUser = localStorage.getItem("app_user");
-    const storedToken = localStorage.getItem("app_token");
-    if (storedUser && storedToken) {
-      setUser(JSON.parse(storedUser));
-      setToken(storedToken);
-    }
+      const storedToken = getAccessToken();
+      const storedRefresh = getRefreshToken();
+
+      if (storedUser && storedToken) {
+        setUser(JSON.parse(storedUser));
+        setToken(storedToken);
+        setLoading(false);
+        return;
+      }
+
+      if (storedRefresh) {
+        try {
+          const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken: storedRefresh }),
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.accessToken && data.refreshToken) {
+              setAuthTokens(data.accessToken, data.refreshToken);
+              setToken(data.accessToken);
+
+              const meResponse = await fetch(`${API_BASE_URL}/api/auth/me`, {
+                headers: { Authorization: `Bearer ${data.accessToken}` },
+              });
+
+              if (meResponse.ok) {
+                const meData = await meResponse.json();
+                if (meData.user) {
+                  setUser(meData.user);
+                  localStorage.setItem("app_user", JSON.stringify(meData.user));
+                }
+              }
+            }
+          }
+        } catch {
+          clearAuthTokens();
+          localStorage.removeItem("app_user");
+        }
+      }
+
+      setLoading(false);
+    };
+
+    bootstrapAuth();
   }, []);
 
-  const login = (userData: User, authToken: string) => {
+  const login = (userData: User, accessToken: string, refreshToken: string) => {
     setUser(userData);
-    setToken(authToken);
+    setToken(accessToken);
     localStorage.setItem("app_user", JSON.stringify(userData));
-    localStorage.setItem("app_token", authToken);
+    setAuthTokens(accessToken, refreshToken);
   };
 
   const logout = () => {
     setUser(null);
     setToken(null);
     localStorage.removeItem("app_user");
-    localStorage.removeItem("app_token");
+    clearAuthTokens();
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token }}>
+    <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token, loading }}>
       {children}
     </AuthContext.Provider>
   );

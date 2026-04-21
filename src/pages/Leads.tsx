@@ -53,6 +53,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { authFetch } from "@/lib/api";
 
 // --- INTERFACES ---
 interface Lead {
@@ -81,6 +82,9 @@ const Leads = () => {
 
   // --- SEARCH STATE ---
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [datePreset, setDatePreset] = useState("all");
 
   // --- PAGINATION STATE ---
   const [currentPage, setCurrentPage] = useState(1);
@@ -90,7 +94,7 @@ const Leads = () => {
   const fetchLeads = async () => {
     try {
       setLoading(true);
-      const response = await fetch("https://api.clickplick.co.uk/api/leads/leads");
+      const response = await authFetch("https://api.clickplick.co.uk/api/leads/leads");
       const result = await response.json();
 
       if (result.success) {
@@ -123,7 +127,7 @@ const Leads = () => {
     setLeads(updatedLeads);
 
     try {
-      const response = await fetch(`https://api.clickplick.co.uk/api/leads/leads/${leadId}/status`, {
+      const response = await authFetch(`https://api.clickplick.co.uk/api/leads/leads/${leadId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -147,7 +151,7 @@ const Leads = () => {
     if (!confirm("Are you sure you want to delete this lead? This cannot be undone.")) return;
 
     try {
-      const response = await fetch(`https://api.clickplick.co.uk/api/leads/leads/${leadId}`, {
+      const response = await authFetch(`https://api.clickplick.co.uk/api/leads/leads/${leadId}`, {
         method: 'DELETE'
       });
       
@@ -165,16 +169,66 @@ const Leads = () => {
   };
 
   // --- 4. FILTERING LOGIC ---
+  useEffect(() => {
+    if (datePreset === "all") {
+      setDateFrom("");
+      setDateTo("");
+      return;
+    }
+
+    const today = new Date();
+    const format = (d: Date) => d.toISOString().slice(0, 10);
+
+    if (datePreset === "today") {
+      const day = format(today);
+      setDateFrom(day);
+      setDateTo(day);
+      return;
+    }
+
+    if (datePreset === "last7") {
+      const from = new Date(today);
+      from.setDate(today.getDate() - 6);
+      setDateFrom(format(from));
+      setDateTo(format(today));
+      return;
+    }
+
+    if (datePreset === "thisMonth") {
+      const from = new Date(today.getFullYear(), today.getMonth(), 1);
+      setDateFrom(format(from));
+      setDateTo(format(today));
+    }
+  }, [datePreset]);
+
   const filteredLeads = useMemo(() => {
     return leads.filter((lead) => {
       const searchStr = searchQuery.toLowerCase();
-      return (
+      const matchesSearch = (
         lead.customer_name?.toLowerCase().includes(searchStr) ||
         lead.email?.toLowerCase().includes(searchStr) ||
         lead.phone_number?.includes(searchStr)
       );
+
+      if (!matchesSearch) return false;
+
+      if (!dateFrom && !dateTo) return true;
+      const leadDate = new Date(lead.created_at);
+      if (Number.isNaN(leadDate.getTime())) return false;
+
+      if (dateFrom) {
+        const from = new Date(`${dateFrom}T00:00:00`);
+        if (leadDate < from) return false;
+      }
+
+      if (dateTo) {
+        const to = new Date(`${dateTo}T23:59:59`);
+        if (leadDate > to) return false;
+      }
+
+      return true;
     });
-  }, [leads, searchQuery]);
+  }, [leads, searchQuery, dateFrom, dateTo]);
 
   // Reset to page 1 when search changes
   useEffect(() => {
@@ -273,6 +327,38 @@ Status: ${selectedLead.status}
               <X className="h-4 w-4" />
             </button>
           )}
+        </div>
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+          <Select value={datePreset} onValueChange={setDatePreset}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Date range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Time</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="last7">Last 7 Days</SelectItem>
+              <SelectItem value="thisMonth">This Month</SelectItem>
+              <SelectItem value="custom">Custom</SelectItem>
+            </SelectContent>
+          </Select>
+          <Input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => {
+              setDatePreset("custom");
+              setDateFrom(e.target.value);
+            }}
+            className="w-[150px]"
+          />
+          <Input
+            type="date"
+            value={dateTo}
+            onChange={(e) => {
+              setDatePreset("custom");
+              setDateTo(e.target.value);
+            }}
+            className="w-[150px]"
+          />
         </div>
         <div className="text-xs text-muted-foreground">
           Found <strong>{filteredLeads.length}</strong> leads

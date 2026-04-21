@@ -23,7 +23,7 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   
   // 2. Get isAuthenticated from your context
-  const { login, isAuthenticated } = useAuth(); 
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   // 3. Add this Redirect Logic
@@ -49,9 +49,9 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        login(data.user, data.token);
+        login(data.user, data.accessToken, data.refreshToken);
         // Navigation is handled by the useEffect above or here
-        navigate("/"); 
+        navigate("/");
       } else {
         setError(data.message || "Invalid credentials");
       }

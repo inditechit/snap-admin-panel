@@ -18,6 +18,7 @@ import {
   Legend,
 } from "recharts";
 import { toast } from "sonner";
+import { authFetch } from "@/lib/api";
 
 // --- Types ---
 interface Lead {
@@ -26,6 +27,8 @@ interface Lead {
   created_at: string;
   event_date: string;
   customer_name: string;
+  event_type?: string;
+  choice_of_photobooth?: string;
 }
 
 interface ChartData {
@@ -38,12 +41,15 @@ const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884d8"];
 const Analytics = () => {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
+  const [datePreset, setDatePreset] = useState("last30");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   // --- 1. Fetch Real Data ---
   useEffect(() => {
     const fetchLeads = async () => {
       try {
-        const response = await fetch("https://api.clickplick.co.uk/api/leads/leads");
+        const response = await authFetch("https://api.clickplick.co.uk/api/leads/leads");
         const result = await response.json();
         if (result.success) {
           setLeads(result.data);
@@ -59,17 +65,65 @@ const Analytics = () => {
     fetchLeads();
   }, []);
 
+  useEffect(() => {
+    const today = new Date();
+    const format = (d: Date) => d.toISOString().slice(0, 10);
+
+    if (datePreset === "all") {
+      setDateFrom("");
+      setDateTo("");
+      return;
+    }
+
+    if (datePreset === "last30") {
+      const from = new Date(today);
+      from.setDate(today.getDate() - 29);
+      setDateFrom(format(from));
+      setDateTo(format(today));
+      return;
+    }
+
+    if (datePreset === "last7") {
+      const from = new Date(today);
+      from.setDate(today.getDate() - 6);
+      setDateFrom(format(from));
+      setDateTo(format(today));
+      return;
+    }
+
+    if (datePreset === "thisMonth") {
+      const from = new Date(today.getFullYear(), today.getMonth(), 1);
+      setDateFrom(format(from));
+      setDateTo(format(today));
+    }
+  }, [datePreset]);
+
+  const filteredLeads = useMemo(() => {
+    if (!dateFrom && !dateTo) return leads;
+    return leads.filter((lead) => {
+      const created = new Date(lead.created_at);
+      if (Number.isNaN(created.getTime())) return false;
+      if (dateFrom && created < new Date(`${dateFrom}T00:00:00`)) return false;
+      if (dateTo && created > new Date(`${dateTo}T23:59:59`)) return false;
+      return true;
+    });
+  }, [leads, dateFrom, dateTo]);
+
   // --- 2. Process Data for Charts ---
 
   // A. KPI Cards
   const kpiData = useMemo(() => {
-    const total = leads.length;
-    const converted = leads.filter((l) => l.status === "Converted").length;
-    const newLeads = leads.filter((l) => l.status === "New").length;
+    const total = filteredLeads.length;
+    const converted = filteredLeads.filter((l) => l.status === "Converted").length;
+    const contacted = filteredLeads.filter((l) => l.status === "Contacted").length;
+    const newLeads = filteredLeads.filter((l) => l.status === "New").length;
     const conversionRate = total > 0 ? ((converted / total) * 100).toFixed(1) : "0";
+    const avgPerDay = dateFrom && dateTo
+      ? (total / (Math.max(1, (new Date(`${dateTo}T00:00:00`).getTime() - new Date(`${dateFrom}T00:00:00`).getTime()) / (1000 * 60 * 60 * 24) + 1))).toFixed(1)
+      : "0";
 
-    return { total, converted, newLeads, conversionRate };
-  }, [leads]);
+    return { total, converted, contacted, newLeads, conversionRate, avgPerDay };
+  }, [filteredLeads, dateFrom, dateTo]);
 
   // B. Monthly Leads Trend (Based on created_at)
   const monthlyTrendData = useMemo(() => {
@@ -79,7 +133,7 @@ const Analytics = () => {
     // Initialize current year months to 0 so chart looks complete
     monthOrder.forEach(m => months[m] = 0);
 
-    leads.forEach((lead) => {
+    filteredLeads.forEach((lead) => {
       const date = new Date(lead.created_at);
       const monthName = date.toLocaleString("default", { month: "short" });
       months[monthName] = (months[monthName] || 0) + 1;
@@ -89,12 +143,12 @@ const Analytics = () => {
       month,
       leads: months[month],
     }));
-  }, [leads]);
+  }, [filteredLeads]);
 
   // C. Status Distribution (Pie Chart)
   const statusData = useMemo(() => {
     const counts: { [key: string]: number } = {};
-    leads.forEach((lead) => {
+    filteredLeads.forEach((lead) => {
       const status = lead.status || "Unknown";
       counts[status] = (counts[status] || 0) + 1;
     });
@@ -103,14 +157,14 @@ const Analytics = () => {
       name: key,
       value: counts[key],
     }));
-  }, [leads]);
+  }, [filteredLeads]);
 
   // D. Event Seasonality (Based on event_date)
   const eventSeasonalityData = useMemo(() => {
     const months: { [key: string]: number } = {};
     const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     
-    leads.forEach((lead) => {
+    filteredLeads.forEach((lead) => {
       if (lead.event_date) {
         const date = new Date(lead.event_date);
         const monthName = date.toLocaleString("default", { month: "short" });
@@ -122,7 +176,19 @@ const Analytics = () => {
       name: month,
       events: months[month] || 0,
     }));
-  }, [leads]);
+  }, [filteredLeads]);
+
+  const topEventTypes = useMemo(() => {
+    const counts: Record<string, number> = {};
+    filteredLeads.forEach((lead) => {
+      const key = lead.event_type || "Unknown";
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [filteredLeads]);
 
   if (loading) {
     return (
@@ -136,9 +202,40 @@ const Analytics = () => {
 
   return (
     <AdminLayout title="Analytics" subtitle="Real-time business performance">
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <select
+          className="h-9 rounded-md border bg-background px-3 text-sm"
+          value={datePreset}
+          onChange={(e) => setDatePreset(e.target.value)}
+        >
+          <option value="last30">Last 30 Days</option>
+          <option value="last7">Last 7 Days</option>
+          <option value="thisMonth">This Month</option>
+          <option value="all">All Time</option>
+          <option value="custom">Custom</option>
+        </select>
+        <input
+          type="date"
+          className="h-9 rounded-md border bg-background px-3 text-sm"
+          value={dateFrom}
+          onChange={(e) => {
+            setDatePreset("custom");
+            setDateFrom(e.target.value);
+          }}
+        />
+        <input
+          type="date"
+          className="h-9 rounded-md border bg-background px-3 text-sm"
+          value={dateTo}
+          onChange={(e) => {
+            setDatePreset("custom");
+            setDateTo(e.target.value);
+          }}
+        />
+      </div>
       
       {/* 1. KPI Stats Row */}
-      <div className="grid gap-4 md:grid-cols-4 mb-6">
+      <div className="grid gap-4 md:grid-cols-6 mb-6">
         <PageCard className="text-center py-6">
           <div className="flex justify-center mb-2">
             <div className="p-2 bg-blue-100 rounded-full text-blue-600">
@@ -177,6 +274,14 @@ const Analytics = () => {
           </div>
           <p className="text-sm text-muted-foreground">New Opportunities</p>
           <p className="mt-1 text-3xl font-bold">{kpiData.newLeads}</p>
+        </PageCard>
+        <PageCard className="text-center py-6">
+          <p className="text-sm text-muted-foreground">Contacted</p>
+          <p className="mt-1 text-3xl font-bold">{kpiData.contacted}</p>
+        </PageCard>
+        <PageCard className="text-center py-6">
+          <p className="text-sm text-muted-foreground">Avg Leads / Day</p>
+          <p className="mt-1 text-3xl font-bold">{kpiData.avgPerDay}</p>
         </PageCard>
       </div>
 
@@ -236,7 +341,7 @@ const Analytics = () => {
       </div>
 
       {/* 3. Charts Row 2 */}
-      {/* <div className="grid gap-6 lg:grid-cols-1">
+      <div className="grid gap-6 lg:grid-cols-2">
         <PageCard title="Event Seasonality" description="When events are actually scheduled to happen">
           <div className="h-80">
             <ResponsiveContainer width="100%" height="100%">
@@ -261,7 +366,20 @@ const Analytics = () => {
             </ResponsiveContainer>
           </div>
         </PageCard>
-      </div> */}
+        <PageCard title="Top Event Types" description="Most requested event categories">
+          <div className="h-80">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={topEventTypes}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </PageCard>
+      </div>
 
     </AdminLayout>
   );

@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import imageCompression from "browser-image-compression"; // Added compression library
@@ -53,6 +52,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import { authFetch } from "@/lib/api";
 
 const API_URL = "https://api.clickplick.co.uk/api";
 const API_URL2 = "https://api.clickplick.co.uk";
@@ -91,8 +91,10 @@ const Blogs = () => {
 
   const fetchPosts = async () => {
     try {
-      const res = await axios.get(`${API_URL}/posts`);
-      setBlogs(res.data);
+      const res = await authFetch(`${API_URL}/posts`);
+      if (!res.ok) throw new Error("Failed to load posts");
+      const data = await res.json();
+      setBlogs(data);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching posts:", error);
@@ -103,8 +105,10 @@ const Blogs = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await axios.get(`${API_URL}/posts/categories/all`);
-      setCategories(res.data);
+      const res = await authFetch(`${API_URL}/posts/categories/all`);
+      if (!res.ok) throw new Error("Failed to load categories");
+      const data = await res.json();
+      setCategories(data);
     } catch (error) {
       console.error("Error fetching categories:", error);
     }
@@ -154,11 +158,14 @@ const Blogs = () => {
       const imageData = new FormData();
       imageData.append("image", finalFile);
 
-      const res = await axios.post(`${API_URL}/gallery`, imageData, {
-        headers: { "Content-Type": "multipart/form-data" },
+      const res = await authFetch(`${API_URL}/gallery`, {
+        method: "POST",
+        body: imageData,
       });
+      if (!res.ok) throw new Error("Image upload failed");
+      const responseData = await res.json();
 
-      setFormData((prev) => ({ ...prev, link: res.data.url }));
+      setFormData((prev) => ({ ...prev, link: responseData.url }));
       toast.success("Image compressed and uploaded");
     } catch (error) {
       console.error("Upload error:", error);
@@ -176,7 +183,12 @@ const Blogs = () => {
   const handleCreate = async () => {
     setIsSubmitting(true);
     try {
-      await axios.post(`${API_URL}/posts`, formData);
+      const response = await authFetch(`${API_URL}/posts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      if (!response.ok) throw new Error("Create failed");
       toast.success("Blog post created successfully");
       setAddModalOpen(false);
       resetForm();
@@ -193,7 +205,12 @@ const Blogs = () => {
     if (!selectedBlog) return;
     setIsSubmitting(true);
     try {
-      await axios.put(`${API_URL}/posts/${selectedBlog.id}`, formData);
+      const response = await authFetch(`${API_URL}/posts/${selectedBlog.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      if (!response.ok) throw new Error("Update failed");
       toast.success("Blog post updated successfully");
       setEditModalOpen(false);
       fetchPosts();
@@ -208,7 +225,8 @@ const Blogs = () => {
   const handleDelete = async (id: number) => {
     if (!window.confirm("Are you sure you want to delete this post?")) return;
     try {
-      await axios.delete(`${API_URL}/posts/${id}`);
+      const response = await authFetch(`${API_URL}/posts/${id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("Delete failed");
       toast.success("Blog post deleted");
       setBlogs(blogs.filter((b) => b.id !== id));
     } catch (error) {

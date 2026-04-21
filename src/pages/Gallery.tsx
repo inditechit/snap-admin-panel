@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import imageCompression from "browser-image-compression"; 
+import { authFetch } from "@/lib/api";
 
 // API Configuration
 const API_BASE_URL = "https://api.clickplick.co.uk";
@@ -54,7 +55,7 @@ const Gallery = () => {
   const fetchImages = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/gallery`);
+      const response = await authFetch(`${API_BASE_URL}/api/gallery/admin`);
       if (!response.ok) throw new Error("Failed to fetch gallery");
       
       const data = await response.json();
@@ -122,7 +123,7 @@ const Gallery = () => {
       formData.append("image", finalFile); 
       formData.append("category", newCategory);
 
-      const response = await fetch(`${API_BASE_URL}/api/gallery`, {
+      const response = await authFetch(`${API_BASE_URL}/api/gallery`, {
         method: "POST",
         body: formData,
       });
@@ -148,7 +149,7 @@ const Gallery = () => {
     if (!confirm("Are you sure you want to delete this image?")) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/gallery/${imageId}`, {
+      const response = await authFetch(`${API_BASE_URL}/api/gallery/${imageId}`, {
         method: "DELETE",
       });
 
